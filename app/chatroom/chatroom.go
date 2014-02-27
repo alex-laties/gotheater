@@ -1,6 +1,7 @@
 package chatroom
 
 import (
+    "errors"
 	"container/list"
 	"time"
 )
@@ -17,19 +18,19 @@ type Subscription struct {
 	New     <-chan Event
 }
 
-func (s Subscription) Cancel() {
-	unsubscribe <- s.New
+func (s Subscription) Cancel(room ChatRoom) {
+	room.unsubscribe <- s.New
 	drain(s.New)
 }
 
-func newEvent(typ, usr, msg String) Event {
+func newEvent(typ, usr, msg string) Event {
 	return Event{typ, usr, int(time.Now().Unix()), msg}
 }
 
 func Subscribe(room ChatRoom) Subscription {
 	resp := make(chan Subscription)
-	room.subscribe <- resp //this means push response onto subscribe
-	return <-resp     //this means wait on response, then return whatever value comes out of resp
+	room.subscribe <- resp
+	return <-resp
 }
 
 func JoinRoom(room ChatRoom, user string) {
@@ -64,25 +65,55 @@ func NewChatRoom() ChatRoom {
 
 var Rooms map[string]ChatRoom
 
-func GetOrCreateRoom(key string) ChatRoom {
-    r = Rooms[key]
-    if r.subscribe == nil && r.unsubscribe == nil && r.publish == nil {
+func CreateChatRoom(key string) (ChatRoom, error) {
+    r := Rooms[key]
+    i := ChatRoom{}
+    if r == i {
         //Room does not exist and we need to initialize it
         Rooms[key] = NewChatRoom()
-        go runChatRoom(Rooms[key])
+        go runChatRoom(key)
+        return Rooms[key], nil
+    } else {
+        return ChatRoom{}, errors.New("Room already exists")
     }
-    return r[key]
+}
+
+func GetChatRoom(key string) (ChatRoom, error) {
+    r := Rooms[key]
+    i := ChatRoom{}
+    if r == i {
+        return ChatRoom{}, errors.New("Room does not exist")
+    }
+    return r, nil
+}
+
+func DeleteChatRoom(key string) (ChatRoom, error) {
+    r := Rooms[key]
+    i := ChatRoom{}
+    if r == i {
+        return i, errors.New("Room does not exist")
+    }
+
+    delete(Rooms, key)
+    return r, nil
 }
 
 const archiveSize = 10
 
-func runChatRoom(r ChatRoom) {
+func runChatRoom(key string) {
     //Runs a chat room. 
-	var r = GetOrCreateRoom(key)
-	subscribe, publish, unsubscribe := r
+    r, err := GetChatRoom(key)
+    if err != nil {
+        return
+    }
+	subscribe, publish, unsubscribe := r.subscribe, r.publish, r.unsubscribe
 	archive := list.New()
 	subscribers := list.New()
 	for {
+        //Check to see if room is still active
+        if _, err := GetChatRoom(key); err != nil {
+            return
+        }
 		select {
 		case ch := <-subscribe:
 			var events []Event
@@ -91,7 +122,7 @@ func runChatRoom(r ChatRoom) {
 			}
 			subscriber := make(chan Event, 10)
 			subscribers.PushBack(subscriber)
-			ch <- Subscription(events, subscriber)
+			ch <- Subscription{events, subscriber}
 
 		case event := <-publish:
 			for ch := subscribers.Front(); ch != nil; ch = ch.Next() {
