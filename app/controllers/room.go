@@ -1,7 +1,7 @@
 package controllers
 
 import (
-    "animugo/app/chatroom"
+    "gotheater/app/chatroom"
     "code.google.com/p/go.net/websocket"
     "github.com/robfig/revel"
     "log"
@@ -22,7 +22,7 @@ func (c Room) Get(room string) revel.Result {
     }
 
     log.Println("200")
-    return c.Render(room)
+    return c.Render(r)
 }
 
 func (c Room) Create(room string) revel.Result {
@@ -35,7 +35,7 @@ func (c Room) Create(room string) revel.Result {
     }
 
     log.Println("200")
-    return c.Render(room)
+    return c.Render(r)
 }
 
 func (c Room) Delete(room string) revel.Result {
@@ -48,7 +48,7 @@ func (c Room) Delete(room string) revel.Result {
     }
 
     log.Println("200")
-    return c.Render(room)
+    return c.Render(r)
 }
 
 func (c Room) Socket(room string, ws *websocket.Conn) revel.Result {
