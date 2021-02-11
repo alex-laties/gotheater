@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 /**
 A webserver that provides access to:
  - User management
@@ -8,5 +10,6 @@ A webserver that provides access to:
  - Transcode management
 */
 func main() {
+	fmt.Println("hola")
 	return
 }
