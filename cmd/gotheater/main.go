@@ -1,6 +1,6 @@
 package main
 
-import "fmt"
+import "github.com/gin-gonic/gin"
 
 /**
 A webserver that provides access to:
@@ -10,6 +10,7 @@ A webserver that provides access to:
  - Transcode management
 */
 func main() {
-	fmt.Println("hola")
-	return
+	router := gin.Default()
+	router.Static("/", "/var/lib/gotheater/frontend")
+	router.Run(":8080")
 }
