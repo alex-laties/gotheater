@@ -13,15 +13,47 @@ type SetMedia struct {
 	URL string `json:"url"`
 }
 
+// Status represents the data payload of a status message
+type Status struct {
+	Name                  string  `json:"name"`
+	Playing               bool    `json:"playing"`
+	CurrentMediaURL       string  `json:"currentMediaURL"`
+	CurrentMediaTimestamp int     `json:"currentMediaTimestamp"`
+	CurrentPing           int     `json:"currentPing"`
+	CurrentPlaybackRate   float64 `json:"currentPlaybackRate"`
+}
+
+// RulerPlaybackStatus represents the data payload of a playback status message
+type RulerPlaybackStatus struct {
+	Playing               bool `json:"playing"`
+	CurrentMediaTimestamp int  `json:"currentMediaTimestamp"`
+	CurrentPing           int  `json:"currentPing"`
+}
+
+// Ping represents the data payload of a ping message
+type Ping struct {
+	Timestamp int `json:"timestamp"`
+}
+
+// Pong represents the data payload of a pong message
+type Pong struct {
+	ReceivedAt int `json:"receivedAt"`
+	Ping
+}
+
 // NewConnect constructs a Connect message
-func NewConnect(id, rulerID, currMedia string) map[string]interface{} {
+func NewConnect(id string, data map[string]interface{}) map[string]interface{} {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+
+	if _, exists := data["id"]; !exists {
+		data["id"] = id
+	}
+
 	return map[string]interface{}{
 		"type": "connect",
-		"data": map[string]string{
-			"id":           id,
-			"rulerID":      rulerID,
-			"currentMedia": currMedia,
-		},
+		"data": data,
 	}
 }
 

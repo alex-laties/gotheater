@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/alex-laties/gotheater/pkg/message"
 	"github.com/gin-gonic/gin"
@@ -48,11 +49,30 @@ func main() {
 		currRuler := currentRulerID
 		currentRulerLock.Unlock()
 
-		msg := message.NewConnect(id, currRuler, currentMediaURL)
+		var currSessions []map[string]string
+		sessionsLock.Lock()
+		for id, sess := range sessions {
+			var name string
+			if nameTemp, exists := sess.Get("name"); exists {
+				name = nameTemp.(string)
+			}
+			currSessions = append(currSessions, map[string]string{
+				"id":   id,
+				"name": name,
+			})
+		}
+		sessionsLock.Unlock()
+
+		msg := message.NewConnect(id, map[string]interface{}{
+			"id":                    id,
+			"currentRulerID":        currRuler,
+			"currentMediaURL":       currentMediaURL,
+			"currentMediaTimestamp": currentMediaTimestamp,
+			"currentMediaPaused":    currentMediaPaused,
+			"currentSessions":       currSessions,
+		})
 		msgBytes, _ := json.Marshal(msg)
 		websocketRouter.Broadcast(msgBytes)
-
-		// TODO send current members + media to client
 	})
 
 	websocketRouter.HandleMessage(func(s *melody.Session, b []byte) {
@@ -70,6 +90,7 @@ func main() {
 
 		switch msg.Type {
 		case "setMedia":
+			// only the ruler can set media
 			if id != currentRulerID {
 				return
 			}
@@ -84,15 +105,48 @@ func main() {
 
 			websocketRouter.BroadcastBinaryOthers(b, s)
 		case "status":
-			// we pass these on immediately
-			websocketRouter.BroadcastOthers(b, s)
-			if id == currentRulerID {
-				// TODO parse timestamp and set to currentMediaTimestamp
+			var status message.Status
+			err := json.Unmarshal(msg.Data, &status)
+			if err != nil {
+				return
 			}
+			if status.Name != "" {
+				s.Set("name", status.Name)
+			}
+			websocketRouter.BroadcastOthers(b, s)
+		case "playbackStatus":
+			if id != currentRulerID {
+				return
+			}
+			// capture current playback timestamp
+			var playbackStatus message.RulerPlaybackStatus
+			err := json.Unmarshal(msg.Data, &playbackStatus)
+			if err != nil {
+				return
+			}
+			currentMediaLock.Lock()
+			currentMediaPaused = !playbackStatus.Playing
+			currentMediaTimestamp = playbackStatus.CurrentMediaTimestamp
+			currentMediaLock.Unlock()
+			websocketRouter.BroadcastOthers(b, s)
 		case "ping":
-			// TODO pong
-		case "setName":
-			// TODO parse name and set
+			var ping message.Ping
+			if err := json.Unmarshal(msg.Data, &ping); err != nil {
+				return
+			}
+
+			currTime := int64(time.Nanosecond) * time.Now().UnixNano() / int64(time.Millisecond)
+			payload, err := json.Marshal(map[string]interface{}{
+				"id": "god",
+				"data": message.Pong{
+					Ping:       ping,
+					ReceivedAt: int(currTime),
+				},
+			})
+			if err != nil {
+				return
+			}
+			s.Write(payload)
 		case "pause":
 			currentMediaLock.Lock()
 			currentMediaPaused = true
@@ -104,9 +158,17 @@ func main() {
 			currentMediaLock.Unlock()
 			websocketRouter.BroadcastOthers(b, s)
 		case "seek":
+			var seekTo message.Seek
+			err := json.Unmarshal(msg.Data, &seekTo)
+			if err != nil {
+				return
+			}
+
 			currentMediaLock.Lock()
-			// TODO parse timestamp
+			currentMediaPaused = true
+			currentMediaTimestamp = seekTo.MediaTimestamp
 			currentMediaLock.Unlock()
+			websocketRouter.BroadcastOthers(b, s)
 		default:
 			return
 		}
