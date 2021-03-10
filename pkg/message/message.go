@@ -4,13 +4,24 @@ import "encoding/json"
 
 // Base represents the basic structure of a gotheater message used for parsing
 type Base struct {
+	ID   string          `json:"id"`
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
+}
+
+// SetRuler represents the data payload of a setRuler message
+type SetRuler struct {
+	NewRulerID string `json:"newRulerID"`
 }
 
 // SetMedia represents the data payload of a setMedia message
 type SetMedia struct {
 	URL string `json:"url"`
+}
+
+// Seek represents the data payload of a seek message
+type Seek struct {
+	MediaTimestamp int `json:"mediaTimestamp"`
 }
 
 // Status represents the data payload of a status message
@@ -41,7 +52,7 @@ type Pong struct {
 	Ping
 }
 
-// NewConnect constructs a Connect message
+// NewConnect constructs a full Connect message
 func NewConnect(id string, data map[string]interface{}) map[string]interface{} {
 	if data == nil {
 		data = make(map[string]interface{})
@@ -52,14 +63,27 @@ func NewConnect(id string, data map[string]interface{}) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
+		"id":   "god",
 		"type": "connect",
 		"data": data,
 	}
 }
 
-// NewDisconnect constructs a Disconnect message
+// NewRuler constructs a full NewRuler message
+func NewRuler(id string) map[string]interface{} {
+	return map[string]interface{}{
+		"id":   "god",
+		"type": "setRuler",
+		"data": SetRuler{
+			NewRulerID: id,
+		},
+	}
+}
+
+// NewDisconnect constructs a full Disconnect message
 func NewDisconnect(id string) map[string]interface{} {
 	return map[string]interface{}{
+		"id":   "god",
 		"type": "disconnect",
 		"data": map[string]string{
 			"id": id,

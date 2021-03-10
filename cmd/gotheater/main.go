@@ -8,6 +8,7 @@ import (
 	"github.com/alex-laties/gotheater/pkg/message"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/xid"
+	"go.uber.org/zap"
 	"gopkg.in/olahol/melody.v1"
 )
 
@@ -25,13 +26,15 @@ A webserver that provides access to:
  - Transcode management
 */
 func main() {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+	sugarLog := logger.Sugar()
 	router := gin.Default()
 	websocketRouter := melody.New()
 
 	router.GET("/ws", func(c *gin.Context) {
 		websocketRouter.HandleRequest(c.Writer, c.Request)
 	})
-	router.Static("/", "/var/lib/gotheater/frontend")
 
 	websocketRouter.HandleConnect(func(s *melody.Session) {
 		// assign a userID
@@ -78,6 +81,9 @@ func main() {
 	websocketRouter.HandleMessage(func(s *melody.Session, b []byte) {
 		idTemp, exists := s.Get("id")
 		if !exists {
+			sugarLog.Warnw("message without ID",
+				"message", string(b),
+			)
 			return
 		}
 		id := idTemp.(string)
@@ -85,18 +91,46 @@ func main() {
 		var msg message.Base
 		err := json.Unmarshal(b, &msg)
 		if err != nil {
+			sugarLog.Error(err)
 			return
 		}
 
 		switch msg.Type {
+		case "setLeader":
+			if id != currentRulerID {
+				sugarLog.Warn("attempt to change ruler from non-ruler")
+				return
+			}
+
+			var newRuler message.SetRuler
+			err := json.Unmarshal(msg.Data, &newRuler)
+			if err != nil {
+				sugarLog.Error(err)
+				return
+			}
+			// verify the session exists
+			sessionsLock.Lock()
+			if _, exists := sessions[newRuler.NewRulerID]; !exists {
+				sugarLog.Warn("attempt to change ruler to a non-existant user")
+				sessionsLock.Unlock()
+				return
+			}
+			sessionsLock.Unlock()
+
+			currentRulerLock.Lock()
+			currentRulerID = newRuler.NewRulerID
+			currentRulerLock.Unlock()
+			websocketRouter.BroadcastOthers(b, s)
 		case "setMedia":
 			// only the ruler can set media
 			if id != currentRulerID {
+				sugarLog.Warn("attempted setMedia from non-ruler")
 				return
 			}
 			var media message.SetMedia
 			err := json.Unmarshal(msg.Data, &media)
 			if err != nil {
+				sugarLog.Error(err)
 				return
 			}
 			currentMediaLock.Lock()
@@ -108,6 +142,7 @@ func main() {
 			var status message.Status
 			err := json.Unmarshal(msg.Data, &status)
 			if err != nil {
+				sugarLog.Error(err)
 				return
 			}
 			if status.Name != "" {
@@ -116,12 +151,14 @@ func main() {
 			websocketRouter.BroadcastOthers(b, s)
 		case "playbackStatus":
 			if id != currentRulerID {
+				sugarLog.Warn("attempt to send playbackStatus by non-ruler")
 				return
 			}
 			// capture current playback timestamp
 			var playbackStatus message.RulerPlaybackStatus
 			err := json.Unmarshal(msg.Data, &playbackStatus)
 			if err != nil {
+				sugarLog.Error(err)
 				return
 			}
 			currentMediaLock.Lock()
@@ -132,6 +169,7 @@ func main() {
 		case "ping":
 			var ping message.Ping
 			if err := json.Unmarshal(msg.Data, &ping); err != nil {
+				sugarLog.Error(err)
 				return
 			}
 
@@ -144,6 +182,7 @@ func main() {
 				},
 			})
 			if err != nil {
+				sugarLog.Error(err)
 				return
 			}
 			s.Write(payload)
@@ -161,6 +200,7 @@ func main() {
 			var seekTo message.Seek
 			err := json.Unmarshal(msg.Data, &seekTo)
 			if err != nil {
+				sugarLog.Error(err)
 				return
 			}
 
@@ -170,6 +210,9 @@ func main() {
 			currentMediaLock.Unlock()
 			websocketRouter.BroadcastOthers(b, s)
 		default:
+			sugarLog.Warnf("undefined message type",
+				"message", string(b),
+			)
 			return
 		}
 	})
@@ -177,6 +220,7 @@ func main() {
 	websocketRouter.HandleDisconnect(func(s *melody.Session) {
 		idTemp, exists := s.Get("id")
 		if !exists {
+			sugarLog.Warn("disconnect from session that no longer exists")
 			return
 		}
 		id := idTemp.(string)
@@ -187,7 +231,19 @@ func main() {
 
 		currentRulerLock.Lock()
 		if currentRulerID == id {
+			// select a new ruler at random if possible
 			currentRulerID = ""
+			sessionsLock.Lock()
+			if len(sessions) > 0 {
+				for randID, _ := range sessions {
+					// first is kind of random, right?
+					currentRulerID = randID
+					break
+				}
+			}
+			msgBytes, _ := json.Marshal(message.NewRuler(currentRulerID))
+			go websocketRouter.BroadcastOthers(msgBytes, s)
+			sessionsLock.Unlock()
 		}
 		currentRulerLock.Unlock()
 
