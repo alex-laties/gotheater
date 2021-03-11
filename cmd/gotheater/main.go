@@ -67,7 +67,6 @@ func main() {
 		sessionsLock.Unlock()
 
 		msg := message.NewConnect(id, map[string]interface{}{
-			"id":                    id,
 			"currentRulerID":        currRuler,
 			"currentMediaURL":       currentMediaURL,
 			"currentMediaTimestamp": currentMediaTimestamp,
@@ -75,7 +74,11 @@ func main() {
 			"currentSessions":       currSessions,
 		})
 		msgBytes, _ := json.Marshal(msg)
-		websocketRouter.Broadcast(msgBytes)
+		s.Write(msgBytes)
+
+		// a simpler message goes to other members
+		msgBytes, _ = json.Marshal(message.NewConnect(id, nil))
+		websocketRouter.BroadcastOthers(msgBytes, s)
 	})
 
 	websocketRouter.HandleMessage(func(s *melody.Session, b []byte) {
@@ -175,7 +178,8 @@ func main() {
 
 			currTime := int64(time.Nanosecond) * time.Now().UnixNano() / int64(time.Millisecond)
 			payload, err := json.Marshal(map[string]interface{}{
-				"id": "god",
+				"id":   "god",
+				"type": "pong",
 				"data": message.Pong{
 					Ping:       ping,
 					ReceivedAt: int(currTime),

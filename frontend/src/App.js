@@ -14,9 +14,15 @@ export default class App extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      id: '',
+      rulerID: '',
+      currentMediaURL: '',
+      currentDrift: 0,
+      name: '',
       connected: false,
       messagesReceived: 0,
       messagesSent: 0,
+      rtt: 0,
       currUsers: [],
     }
     this.client = null;
@@ -34,7 +40,7 @@ export default class App extends Component {
     let port = window.location.port ? `:${window.location.port}`: '';
 
     //let wsURL = `${protocol}://${window.location.hostname}${port}`;
-    let wsURL = 'ws://localhost:10000';
+    let wsURL = 'ws://localhost:8080/ws';
     this.initClient(wsURL);
   }
 
@@ -47,9 +53,15 @@ export default class App extends Component {
     this.client = client;
   }
 
-  sendMessage(message) {
+  sendMessage(type, data) {
     if (this.client !== null) {
-      this.client.send(message);
+      let toSend = {
+        id: this.state.id,
+        type: type,
+        data: data
+      }
+
+      this.client.send(JSON.stringify(toSend));
       this.setState((state) => {
         return {messagesSent: state.messagesSent + 1};
       });
@@ -58,7 +70,7 @@ export default class App extends Component {
 
   keepAlive() {
     if (this.client.readyState == this.client.OPEN) {
-      this.sendMessage(JSON.stringify({type: 'ping', initTime: Date.now()}));
+      this.sendMessage('ping', {timestamp: Date.now()});
     }
     let kA = this.keepAlive.bind(this)
     this.keepaliveTimerID = setTimeout(kA, 1500)
@@ -85,13 +97,20 @@ export default class App extends Component {
     this.setState((state) => {
       return {messagesReceived: state.messagesReceived + 1};
     });
+    let message = null;
     try {
-      console.log('message', JSON.parse(e.data));
+      message = JSON.parse(e.data);
+      console.log('message', message);
     } catch {
       console.log('message plaintext', e.data);
     }
-
-    //TODO route message based on type
+    switch (message.type) {
+      case 'pong':
+        let currTime = Date.now();
+        let rtt = currTime - message.data.timestamp;
+        this.setState({rtt: rtt});
+        break;
+    }
   }
 
   handleClientOpen(e) {
@@ -108,7 +127,8 @@ export default class App extends Component {
       connectedStatus = <div>
         clientStatus: {this.client.readyState} <br />
         messagesReceived: {this.state.messagesReceived} <br />
-        messagesSent: {this.state.messagesSent}
+        messagesSent: {this.state.messagesSent} <br />
+        roundTripTime: {this.state.rtt} ms<br />
       </div>;
     }
     return (
