@@ -48,8 +48,7 @@ export default class App extends Component {
 
     let port = window.location.port ? `:${window.location.port}`: '';
 
-    //let wsURL = `${protocol}://${window.location.hostname}${port}`;
-    let wsURL = 'ws://localhost:8080/ws';
+    let wsURL = `${protocol}://${window.location.hostname}${port}/ws`;
     this.initClient(wsURL);
     this.player.player.subscribeToStateChange(this.handlePlayerStateChange);
   }
