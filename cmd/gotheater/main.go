@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
@@ -16,7 +17,7 @@ var sessions = make(map[string]*melody.Session)
 var sessionsLock, currentRulerLock, currentMediaLock sync.Mutex
 var currentRulerID string
 var currentMediaURL string
-var currentMediaPaused bool
+var currentMediaPaused bool = true
 var currentMediaTimestamp int
 
 /**
@@ -36,6 +37,21 @@ func main() {
 		websocketRouter.HandleRequest(c.Writer, c.Request)
 	})
 
+	// we override the NoRoute handler to support serving react files from here
+	// we can't use static since we already set "/ws"
+	fs := gin.Dir("/var/lib/gotheater/frontend", false)
+	fileServer := http.StripPrefix("/", http.FileServer(fs))
+	router.NoRoute(func(c *gin.Context) {
+		f, err := fs.Open(c.Request.URL.Path)
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		f.Close()
+
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
+
 	websocketRouter.HandleConnect(func(s *melody.Session) {
 		// assign a userID
 		id := xid.New().String()
@@ -43,11 +59,13 @@ func main() {
 		sessionsLock.Lock()
 		sessions[id] = s
 		sessionsLock.Unlock()
-
+		sugarLog.Infow("newUser",
+			"id", id)
 		// if no ruler, set current user as ruler
 		currentRulerLock.Lock()
 		if currentRulerID == "" {
 			currentRulerID = id
+			sugarLog.Infow("newRuler", "id", id)
 		}
 		currRuler := currentRulerID
 		currentRulerLock.Unlock()
@@ -74,11 +92,7 @@ func main() {
 			"currentSessions":       currSessions,
 		})
 		msgBytes, _ := json.Marshal(msg)
-		s.Write(msgBytes)
-
-		// a simpler message goes to other members
-		msgBytes, _ = json.Marshal(message.NewConnect(id, nil))
-		websocketRouter.BroadcastOthers(msgBytes, s)
+		websocketRouter.Broadcast(msgBytes)
 	})
 
 	websocketRouter.HandleMessage(func(s *melody.Session, b []byte) {
@@ -140,6 +154,7 @@ func main() {
 			currentMediaURL = media.URL
 			currentMediaLock.Unlock()
 
+			sugarLog.Infow(string(b))
 			websocketRouter.BroadcastBinaryOthers(b, s)
 		case "status":
 			var status message.Status

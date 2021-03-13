@@ -10,9 +10,6 @@ export default class VidjaPlayer extends Component {
         this.state = {
             source: 'https://storage.googleapis.com/watchwithme/Contagion.2011.720p.BluRay.x264.AAC-%5BYTS.MX%5D.mp4',
         };
-
-        this.play = this.play.bind(this);
-        this.pause = this.pause.bind(this);
     }
 
     componentDidMount() {
@@ -30,7 +27,10 @@ export default class VidjaPlayer extends Component {
     }
 
     handlePlayerStateChange(playerState) {
-        this.player = playerState;
+    }
+
+    getState() {
+        return this.player.getState();
     }
 
     play() {
@@ -55,10 +55,10 @@ export default class VidjaPlayer extends Component {
 
     setURL(url) {
         try {
-            const url = new URL(url);
+            let throwaway = new URL(url);
         } catch (e) {
             console.error('encountered when loading url', url, e)
-            return;
+            throw e;
         }
         console.log('switching video from:', this.player.currentSrc, 'to:', url)
         this.setState({
@@ -76,22 +76,11 @@ export default class VidjaPlayer extends Component {
             <div>
                 <Player
                     ref={player => {this.player = player; }}
-                    autoplay
+                    src={this.state.source}
+                    poster="https://external-preview.redd.it/h_toqTwoOJ4LeP1Z2VGXaCO3HujYejJc7uKzZdbPRUA.jpg?auto=webp&s=82b4a93f58ae2770d8ef72d2418b9c34d1835818"
                 >
-                    <source src={this.state.source} />
                     <ControlBar autoHide={false} />
                 </Player>
-                <Button onClick={this.play}>Play</Button>
-                <Button onClick={this.pause}>Pause</Button>
-                <form>
-                    <TextField
-                        inputRef={urlField => {this.urlField = urlField; }}
-                        id="toLoad"
-                        label="Standard"
-                        value={this.state.source}
-                        onChange={this.loadField}
-                        />
-                </form>
             </div>
         )
     }
