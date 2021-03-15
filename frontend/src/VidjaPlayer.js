@@ -42,7 +42,11 @@ export default class VidjaPlayer extends Component {
     }
 
     jumpTo(seconds) {
+        if (this.player.seeking) {
+            return false;
+        }
         this.player.seek(seconds);
+        return true;
     }
 
     changePlaybackRate(rate) {

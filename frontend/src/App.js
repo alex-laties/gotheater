@@ -37,6 +37,7 @@ export default class App extends Component {
     this.setNewRuler = this.setNewRuler.bind(this);
     this.handlePlayerStateChange = this.handlePlayerStateChange.bind(this);
     this.urlInput = null;
+    this.lastSeekTime = 0;
   }
 
   componentDidMount() {
@@ -62,7 +63,7 @@ export default class App extends Component {
       }
       return;
     }
-    if (prevState.seeking === false && state.seeking) {
+    if (prevState.seeking === false && state.seeking && Math.abs(Date.now() - this.lastSeekTime) > 1000) {
       console.log('seeking', state);
       this.sendMessage('seek', {mediaTimestamp: Math.round(state.currentTime * 1000)});
     }
@@ -111,7 +112,15 @@ export default class App extends Component {
     }
     if (this.client.readyState === this.client.OPEN) {
       this.sendMessage('ping', {timestamp: Date.now()});
-      this.pushStatus(this.player.getState().player);
+      let state = this.player.getState().player;
+      this.pushStatus(state);
+      if (this.state.id === this.state.rulerID) {
+        this.sendMessage('playbackStatus', {
+          playing: state.paused,
+          currentMediaTimestamp: Math.round(state.currentTime * 1000),
+          currentPing: Math.round(this.state.rtt / 2),
+        });
+      }
     }
     this.keepaliveTimerID = setTimeout(this.keepAlive, 1000)
   }
@@ -174,7 +183,8 @@ export default class App extends Component {
         this.currentMediaURL = message.data.currentMediaURL;
         this.player.setURL(this.currentMediaURL);
       }
-      if (message.data.currentMediaTimestamp > 0) {
+      if (message.data.currentMediaTimestamp > 0 && Math.abs(Date.now() - this.lastSeekTime) > 1000) {
+        this.lastSeekTime = Date.now();
         this.player.jumpTo(message.data.currentMediaTimestamp / 1000.0);
       }
       if (message.data.currentMediaPaused) {
@@ -184,6 +194,9 @@ export default class App extends Component {
       }
       break;
     case 'status':
+      if (message.id === this.state.id) {
+        break;
+      }
       const matchingUserIndex = this.state.currUsers.findIndex((el) => el.id === message.id);
       if (matchingUserIndex >= 0) {
         let user = this.state.currUsers[matchingUserIndex];
@@ -202,7 +215,8 @@ export default class App extends Component {
           // no need to do anything if we're within 10 milliseconds of projected timestamp
           console.log('drift', timestampShouldBe, currTimestamp, Math.abs(currTimestamp - timestampShouldBe));
           if (Math.abs(currTimestamp - timestampShouldBe) > 10) {
-            if (Math.abs(currTimestamp-timestampShouldBe) > 5000) { // if we're off by 5+ seconds
+            if (Math.abs(currTimestamp-timestampShouldBe) > 5000 && Math.abs(Date.now() - this.lastSeekTime) > 1000) { // if we're off by 5+ seconds
+              this.lastSeekTime = Date.now();
               this.player.jumpTo(timestampShouldBe / 1000); // just jump
             } else if (currTimestamp - timestampShouldBe < 0) { // if we're behind
               console.log("speeding up");
@@ -233,6 +247,11 @@ export default class App extends Component {
       break;
     case 'seek':
       console.log(message.type, message.data);
+      if (this.applyingSeek) {
+        console.log("already applying a seek")
+        break;
+      }
+      this.lastSeekTime = Date.now();
       this.player.jumpTo(message.data.mediaTimestamp / 1000.0);
       break;
     case 'setMedia':
