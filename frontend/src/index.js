@@ -7,6 +7,24 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
+import CssBaseline from '@material-ui/core/CssBaseline';
+const theme = createMuiTheme({
+  palette: {
+    primary: {
+      light: '#484847',
+      main: '#212120',
+      dark: '#037777777777',
+      contrastText: '#ffffff',
+    },
+    secondary: {
+      light: '#484847',
+      main: '#212120',
+      dark: '#037777777777',
+      contrastText: '#ffffff',
+    }
+  }
+})
 
 ReactDOM.render(
   <React.StrictMode>

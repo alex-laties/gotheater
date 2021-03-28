@@ -7,9 +7,11 @@ import { w3cwebsocket as W3CWebSocket } from "websocket";
 import Box from '@material-ui/core/Box';
 import Card from '@material-ui/core/Card';
 import CardContent from '@material-ui/core/CardContent';
+import CssBaseline from '@material-ui/core/CssBaseline';
+import Container from '@material-ui/core/Container';
 import Typography from '@material-ui/core/Typography';
 import CircularProgress from '@material-ui/core/CircularProgress';
-import { Button, Input, TextField } from '@material-ui/core';
+import { Button, Input, TextField, ThemeProvider } from '@material-ui/core';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
 export default class App extends Component {
@@ -340,15 +342,18 @@ export default class App extends Component {
     let rulerDash;
     if (this.state.id === this.state.rulerID) {
       rulerDash = <div>
+        <Box><Card>
         <Input
           inputRef={input => { this.urlInput = input; }}
         />
         <Button variant="contained" color="primary" onClick={this.setMediaURL}>Load URL</Button>
+        </Card></Box>
       </div>;
     } else {
       rulerDash = <div />
     }
     return (
+      <Container>
       <div className="App">
         <VidjaPlayer ref={player => { this.player = player; }} />
         {rulerDash}
@@ -379,6 +384,7 @@ export default class App extends Component {
           )}
         </Box>
       </div>
+      </Container>
     );
   }
 }

@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { Button } from '@material-ui/core';
-import { Player, ControlBar } from 'video-react';
+import { Player, PlayToggle, ControlBar, VolumeMenuButton } from 'video-react';
 import '../node_modules/video-react/dist/video-react.css';
 import { TextField } from '@material-ui/core';
 
@@ -82,8 +82,12 @@ export default class VidjaPlayer extends Component {
                     ref={player => {this.player = player; }}
                     src={this.state.source}
                     poster="https://external-preview.redd.it/h_toqTwoOJ4LeP1Z2VGXaCO3HujYejJc7uKzZdbPRUA.jpg?auto=webp&s=82b4a93f58ae2770d8ef72d2418b9c34d1835818"
+
                 >
-                    <ControlBar autoHide={false} />
+                    <PlayToggle />
+                    <ControlBar autoHide={true}>
+                        <VolumeMenuButton vertical />
+                    </ControlBar>
                 </Player>
             </div>
         )
