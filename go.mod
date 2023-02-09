@@ -3,7 +3,7 @@ module github.com/alex-laties/gotheater
 go 1.15
 
 require (
-	github.com/gin-gonic/gin v1.6.3
+	github.com/gin-gonic/gin v1.7.7
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/rs/xid v1.2.1
 	go.uber.org/zap v1.16.0
